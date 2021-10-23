@@ -1,6 +1,6 @@
 import './App.css';
 import React from 'react';
-import { FaPowerOff, FaWindowClose, FaExclamationCircle } from 'react-icons/fa';
+import { FaPowerOff, FaWindowClose, FaExclamationCircle, FaPlus, FaEdit } from 'react-icons/fa';
 import {Button, Modal, Input, Label, Form, Dropdown, DropdownToggle, DropdownMenu, DropdownItem} from 'reactstrap';
 import styles from './shared/styles';
 import baseUrl from './shared/baseUrl';
@@ -21,41 +21,49 @@ const RenderControllers = ({aController}) => {
 
     let controller = aController;
 
-    const relays = controller.relays ? controller.relays.map((el, index, arr) => 
-        <DropdownItem onClick={async () => {
-                arr[index] = !el;
-                relayArr[index] = !el;
-                controller = await putController(baseUrl + 'controllers', {"serial": controller.serial, "password": controller.password, "relays": relayArr});
-                controllers.forEach((el, index, arr) => {
-                    console.log(el.serial);
-                    if (controller.serial === el.serial) {
-                        arr[index] = controller;
-                        localStorage.controllers = JSON.stringify(controllers);
-                    }
-                })
-            }} key={index}
-        >
-            Switch {index+1} {el ? <FaPowerOff color="red"/> : <FaPowerOff/>}
-        </DropdownItem>) : [];
+    const relays = controller.relays ? controller.relays.map((el, index, arr) =>
+        <div className="col-3">
+            <DropdownItem onClick={async () => {
+                    arr[index] = !el;
+                    relayArr[index] = !el;
+                    controller = await putController(baseUrl + 'controllers', {"serial": controller.serial, "password": controller.password, "relays": relayArr});
+                    controllers.forEach((el, index, arr) => {
+                        console.log(el.serial);
+                        if (controller.serial === el.serial) {
+                            arr[index] = controller;
+                            localStorage.controllers = JSON.stringify(controllers);
+                        }
+                    })
+                }} key={index}
+            >
+                <h5>Switch {index+1} {el ? <FaPowerOff className="text-warning"/> : <FaPowerOff/>} </h5>
+            </DropdownItem>
+        </div>
+    ) : [];
 
     return (
-        <div style={{display: "flex", flexDirection: "row", justifyContent: "center"}} className="mb-1">
-            <Dropdown isOpen={dropdownOpen} toggle={toggle} key={controller._id}>
-                <DropdownToggle caret>
-                    {controller.serial}
-                </DropdownToggle>
-                <DropdownMenu>
-                    <DropdownItem header>Перемикачі</DropdownItem>
-                    {relays}
-                </DropdownMenu>
-            </Dropdown>
-            <FaWindowClose onClick={() => controllers.forEach((el, index, arr) => {
-                if (el.serial === controller.serial) {
-                    arr.splice(arr[index], 1);
-                    localStorage.controllers = JSON.stringify(controllers);
-                    window.location.reload();
-                }
-            }) } size="30px" className="mt-1" style={{marginLeft: "5px", cursor: "pointer"}}/>
+        <div className="row mb-1">
+            <div className="col-11">
+                <Dropdown size="lg" className="row" isOpen={dropdownOpen} toggle={toggle} key={controller.serial}>
+                    <DropdownToggle caret color="warning" style={{width: "100%"}}>        
+                        {controller.serial}
+                    </DropdownToggle>
+                    <DropdownMenu right className="text-center row">
+                        <DropdownItem header><h3 className="text-center">Перемикачі</h3></DropdownItem>
+                        <div className="row">{relays}</div>
+                    </DropdownMenu>
+                </Dropdown>
+            </div>
+            <div className="col-1">
+                <FaEdit size="30px" />
+                <FaWindowClose onClick={() => controllers.forEach((el, index, arr) => {
+                    if (el.serial === controller.serial) {
+                        arr.splice(arr[index], 1);
+                        localStorage.controllers = JSON.stringify(controllers);
+                        window.location.reload();
+                    }
+                }) } size="30px" className="mt-1" style={{marginLeft: "5px", cursor: "pointer"}}/>
+            </div>
         </div>
     );
 };
@@ -125,19 +133,24 @@ export default function App() {
               </Button>
 
         </Modal>
-        <div className="container text-center" style={{marginTop: "20%"}}>
-            <div>
+        <div className="" style={{marginTop: "0%"}}>
+            <div className="bg-dark mb-1" style={{height: "5em"}}>
+                <h1 className="text-center text-warning pt-3">Мої мікроконтролери</h1>
+            </div>
+            <div className="">
                 {
                     rControllers ? rControllers
-                    : 'Поки що немає контролерів'
+                    : <h1 className="text-center" style={{marginTop: "30%"}}>Поки що немає мікроконтролерів<br/>Додайте новий</h1>
                 }
 
             </div>
             <Button
-                style={{margin: 10, backgroundColor: "#ffc400", width: 50, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 5}}
+                className="fixed-bottom"
+                color="warning"
+                style={{margin: 10, marginLeft: "auto", width: 75, height: 75, alignItems: "center", justifyContent: "center", borderRadius: "50%", border: "3px solid black"}}
                 onClick={() => setModalVisible(true)}
             >
-                +
+                <FaPlus size="lg"/>
             </Button>
         </div>
       </>
