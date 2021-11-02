@@ -16,6 +16,7 @@ const RenderControllers = ({aController}) => {
     const [modalVisible, setModalVisible] = React.useState(false);
     const [dropdownOpen, setDropdownOpen] = React.useState(false);
     const [isChanged, setIsChanged] = React.useState(false);
+    const [hideTools, setHideTools] = React.useState(false);
 
     const toggle = () => setDropdownOpen(prevState => !prevState);
     let relayArr = [];
@@ -71,7 +72,7 @@ const RenderControllers = ({aController}) => {
     );
 
     const relays = controller.relays ? controller.relays.map((el, index, arr) =>
-        <div className="col-3">
+        <div className="col-6 col-md-3">
             <DropdownItem onClick={async () => {
                     arr[index] = !el;
                     relayArr[index] = !el;
@@ -104,7 +105,7 @@ const RenderControllers = ({aController}) => {
     return (
         <>
             <div className="row mb-1">
-                <div className="col-10">
+                <div className="col-9">
                     <Dropdown size="lg" className="row" isOpen={dropdownOpen} toggle={toggle} key={controller.serial}>
                         <DropdownToggle caret color="warning" style={{width: "100%"}}>        
                             {
@@ -118,15 +119,28 @@ const RenderControllers = ({aController}) => {
                         </DropdownMenu>
                     </Dropdown>
                 </div>
-                <div className="col-2">
-                    <FaEdit onClick={() => setModalVisible(!modalVisible)} style={{cursor: "pointer"}} size="30px" />
-                    <FaWindowClose onClick={() => controllers.forEach((el, index, arr) => {
-                        if (el.serial === controller.serial) {
-                            arr.splice(arr[index], 1);
-                            localStorage.controllers = JSON.stringify(controllers);
-                            window.location.reload();
-                        }
-                    }) } size="30px" className="mt-1" style={{marginLeft: "5px", cursor: "pointer"}}/>
+                <div className="col-3">
+                    <div style={{width: "60%"}} hidden={!hideTools}>
+                        <p style={{fontSize: "10pt"}}>Видалити цей контролер?</p>
+                        <div style={{marginTop: "-15px"}}>
+                            <Button size="sm" color="danger"
+                                onClick={() => controllers.forEach((el, index, arr) => {
+                                    if (el.serial === controller.serial) {
+                                        arr.splice(arr[index], 1);
+                                        localStorage.controllers = JSON.stringify(controllers);
+                                        window.location.reload();
+                                    }
+                                })}
+                            >
+                                Так
+                            </Button>
+                            <Button onClick={() => setHideTools(!hideTools)} style={{marginLeft: "10%"}} size="sm" color="success">Ні</Button>
+                        </div>
+                    </div>
+                    <div hidden={hideTools}>
+                        <FaEdit onClick={() => setModalVisible(!modalVisible)} style={{cursor: "pointer"}} size="30px" />
+                        <FaWindowClose onClick={() => setHideTools(!hideTools)} size="30px" className="mt-1" style={{marginLeft: "5px", cursor: "pointer"}}/>
+                    </div>
                 </div>
             </div>
             <Modal className="" isOpen={modalVisible} toggle={() => setModalVisible(!modalVisible)}>
@@ -159,6 +173,7 @@ const RenderControllers = ({aController}) => {
                   color="warning"
                   className="mb-2 mt-2"
                   style={{width: "20%", marginLeft: "auto", marginRight: "auto"}}
+                  onClick={() => setModalVisible(!modalVisible)}
               >
                 OK
               </Button>
@@ -213,29 +228,38 @@ export default function App() {
                 />
               </div>
               <p className="text-center"><FaExclamationCircle color="red"/> Вкажіть кількість, якщо підключаєте контролер вперше</p>
-              <Button
-                  onClick={
-                    async () => {
-                        if (!controllers.some(el => el.serial === controllerInfo.serial)) {
-                            let relays = [];
-                            for (let i = 0; i < countRelays; i++)
-                                relays.push(false);
-                            let result = await postController(baseUrl + 'controllers', {"serial": controllerInfo.serial, "password": controllerInfo.password, "relays": relays});
-                            controllers.push({serial: result.serial, password: result.password, relays: result.relays});
-                            //console.log("result: ", result, " controllers: ", controllers);
-                            localStorage.controllers = JSON.stringify(controllers);
-                        } else {
-                            alert("Такий контроллер вже існує");
-                        }
-                      setModalVisible(!modalVisible);
-                    }}
-                  color="warning"
-                  className="mb-2"
-                  style={{width: "40%", marginLeft: "auto", marginRight: "auto"}}
-              >
-                Додати контролер
-              </Button>
-
+              <div className="row text-center">
+                <div className="col-1"></div>
+                <Button
+                    onClick={
+                        async () => {
+                            if (!controllers.some(el => el.serial === controllerInfo.serial)) {
+                                let relays = [];
+                                for (let i = 0; i < countRelays; i++)
+                                    relays.push(false);
+                                let result = await postController(baseUrl + 'controllers', {"serial": controllerInfo.serial, "password": controllerInfo.password, "relays": relays});
+                                controllers.push({serial: result.serial, password: result.password, relays: result.relays});
+                                //console.log("result: ", result, " controllers: ", controllers);
+                                localStorage.controllers = JSON.stringify(controllers);
+                            } else {
+                                alert("Такий контроллер вже існує");
+                            }
+                        setModalVisible(!modalVisible);
+                        }}
+                    color="warning"
+                    className="mb-2 col-5"
+                >
+                    Додати контролер
+                </Button>
+                <Button
+                    onClick={() => setModalVisible(!modalVisible)}
+                    color="secondary"
+                    className="mb-2 col-4"
+                    style={{marginLeft: "5%"}}
+                >
+                    Скасувати
+                </Button>
+              </div>
         </Modal>
         <div className="" style={{marginTop: "0%"}}>
             <div className="bg-dark mb-1" style={{height: "5em"}}>
@@ -251,7 +275,7 @@ export default function App() {
             <Button
                 className="fixed-bottom"
                 color="warning"
-                style={{margin: 10, marginLeft: "auto", width: 75, height: 75, alignItems: "center", justifyContent: "center", borderRadius: "50%", border: "3px solid black"}}
+                style={{margin: 10, marginLeft: "auto", width: 60, height: 60, alignItems: "center", justifyContent: "center", borderRadius: "50%", border: "3px solid black"}}
                 onClick={() => setModalVisible(true)}
             >
                 <FaPlus size="lg"/>
