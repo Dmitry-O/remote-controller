@@ -2,7 +2,7 @@ const styles = {
     input: {
         borderRadius: 4,
         fontSize: 18,
-        width: "80%",
+        width: "60%",
         marginLeft: "auto",
         marginRight: "auto",
         marginTop: "2.5%",

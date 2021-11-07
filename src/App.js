@@ -6,7 +6,8 @@ import styles from './shared/styles';
 import baseUrl from './shared/baseUrl';
 import { postController, getController, putController } from './shared/API';
 
-// localStorage.removeItem('names');
+const PREFIX = "RMC";
+const SUFIX = "SE";
 
 let controllers = localStorage.getItem('controllers') ? JSON.parse(localStorage.controllers) : [];
 let names = localStorage.getItem('names') ? JSON.parse(localStorage.names) : [];
@@ -193,23 +194,35 @@ export default function App() {
 
   let rControllers = controllers[0] ? controllers.map(el => <RenderControllers aController={el}/>) : null;
 
-  let inputPlus = {};
-  for (let i in styles.input)
+  let inputPlus = {}, serialInput = {};
+  for (let i in styles.input) {
     inputPlus[i] = styles.input[i];
+    serialInput[i] = styles.input[i];
+  }
   
   inputPlus.width = "15%";
   inputPlus.marginLeft = "0px";
+
+  serialInput.width = "40%";
+  serialInput.marginLeft = "0px";
+  serialInput.marginRight = "0px";
 
   return (
       <>
         <Modal className="container" isOpen={modalVisible} toggle={() => setModalVisible(!modalVisible)}>
             <h4 className="text-center mt-2 text-secondary">Додайте мікроконтролер</h4>
-              <Input
-                  type="text"
-                  onChange={e => setControllerInfo({serial: e.target.value, password: controllerInfo.password, relays: controllerInfo.relays})}
-                  style={styles.input}
-                  placeholder="Серійний номер"
-              />
+              <div className="row">
+                <div className="col-2"></div>
+                <h6 className="mt-4 col-1 text-secondary" style={{marginRight: "3%", marginLeft: "3%"}}>{PREFIX}</h6>
+                <Input
+                    type="text" min="8" max="8"
+                    onChange={e => setControllerInfo({serial: e.target.value, password: controllerInfo.password, relays: controllerInfo.relays})}
+                    style={serialInput}
+                    placeholder="Серійний номер"
+                />
+                <h6 className="mt-4 col-2 text-secondary">{SUFIX}</h6>
+                <div className="col-2"></div>
+              </div>
               <Input
                   type="password"
                   onChange={e => setControllerInfo({serial: controllerInfo.serial, password: e.target.value, relays: controllerInfo.relays})}
@@ -233,18 +246,26 @@ export default function App() {
                 <Button
                     onClick={
                         async () => {
-                            if (!controllers.some(el => el.serial === controllerInfo.serial)) {
-                                let relays = [];
-                                for (let i = 0; i < countRelays; i++)
-                                    relays.push(false);
-                                let result = await postController(baseUrl + 'controllers', {"serial": controllerInfo.serial, "password": controllerInfo.password, "relays": relays});
-                                controllers.push({serial: result.serial, password: result.password, relays: result.relays});
-                                //console.log("result: ", result, " controllers: ", controllers);
-                                localStorage.controllers = JSON.stringify(controllers);
+                            if (controllerInfo.serial.length === 8 && controllerInfo.password.length === 8) {
+                                if (!controllers.some(el => el.serial === controllerInfo.serial)) {
+                                    let relays = [];
+                                    for (let i = 0; i < countRelays; i++)
+                                        relays.push(false);
+                                    let result = await postController(baseUrl + 'controllers', {"serial": PREFIX + controllerInfo.serial + SUFIX, "password": controllerInfo.password, "relays": relays});
+                                    if (result.serial) {
+                                        controllers.push({serial: result.serial, password: result.password, relays: result.relays});
+                                        localStorage.controllers = JSON.stringify(controllers);
+                                        setModalVisible(!modalVisible);
+                                    }
+                                    else {
+                                        alert("Пароль невірний");
+                                    }
+                                } else {
+                                    alert("Такий контроллер вже існує");
+                                }
                             } else {
-                                alert("Такий контроллер вже існує");
+                                alert("Серійний номер або пароль недійсні\nСпробуйте ще раз");
                             }
-                        setModalVisible(!modalVisible);
                         }}
                     color="warning"
                     className="mb-2 col-5"
