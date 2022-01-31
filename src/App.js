@@ -4,7 +4,7 @@ import { FaPowerOff, FaWindowClose, FaExclamationCircle, FaPlus, FaEdit, FaCheck
 import {Button, Modal, Input, Label, Form, Dropdown, DropdownToggle, DropdownMenu, DropdownItem} from 'reactstrap';
 import styles from './shared/styles';
 import baseUrl from './shared/baseUrl';
-import { postController, getController, putController } from './shared/API';
+import { postController, putController } from './shared/API';
 
 const PREFIX = "RMC";
 const SUFIX = "SE";
