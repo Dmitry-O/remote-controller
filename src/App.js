@@ -1,6 +1,6 @@
 import './App.css';
 import React from 'react';
-import { FaPowerOff, FaWindowClose, FaExclamationCircle, FaPlus, FaEdit, FaCheckCircle } from 'react-icons/fa';
+import { FaPowerOff, FaWindowClose, FaExclamationCircle, FaPlus, FaEdit, FaCheckCircle, FaLuggageCart } from 'react-icons/fa';
 import {Button, Modal, Input, Label, Form, Dropdown, DropdownToggle, DropdownMenu, DropdownItem} from 'reactstrap';
 import styles from './shared/styles';
 import baseUrl from './shared/baseUrl';
@@ -15,9 +15,17 @@ let countRelays = 1;
 
 const RenderControllers = ({aController}) => {
     const [modalVisible, setModalVisible] = React.useState(false);
+    const [modeModalVisible, setModeModalVisible] = React.useState({visible: false, relay: {el: null, index: null, arr: null}});
     const [dropdownOpen, setDropdownOpen] = React.useState(false);
     const [isChanged, setIsChanged] = React.useState(false);
     const [hideTools, setHideTools] = React.useState(false);
+    const [workingMode, setWorkingMode] = React.useState("simple");
+
+    const [countTimer, setCountTimer] = React.useState(0);
+    const [turnOn, setTurnOn] = React.useState(false);
+    const [hideTimer, setHideTimer] = React.useState(false);
+    const [disableButton, setDisableButton] = React.useState(false);
+    const [stopButton, setStopButton] = React.useState(true);
 
     const toggle = () => setDropdownOpen(prevState => !prevState);
     let relayArr = [];
@@ -74,17 +82,19 @@ const RenderControllers = ({aController}) => {
 
     const relays = controller.relays ? controller.relays.map((el, index, arr) =>
         <div className="col-6 col-md-3">
-            <DropdownItem onClick={async () => {
-                    arr[index] = !el;
-                    relayArr[index] = !el;
-                    controller = await putController(baseUrl + 'controllers', {"serial": controller.serial, "password": controller.password, "relays": relayArr});
-                    controllers.forEach((el, index, arr) => {
-                        console.log(el.serial);
-                        if (controller.serial === el.serial) {
-                            arr[index] = controller;
-                            localStorage.controllers = JSON.stringify(controllers);
-                        }
-                    })
+            <DropdownItem onClick={() => {
+                    setModeModalVisible({visible: !modeModalVisible.visible, relay: {el, index, arr}});
+
+                    // arr[index] = !el;
+                    // relayArr[index] = !el;
+                    // controller = await putController(baseUrl + 'controllers', {"serial": controller.serial, "password": controller.password, "relays": relayArr});
+                    // controllers.forEach((el, index, arr) => {
+                    //     console.log(el.serial);
+                    //     if (controller.serial === el.serial) {
+                    //         arr[index] = controller;
+                    //         localStorage.controllers = JSON.stringify(controllers);
+                    //     }
+                    // })
                 }} key={index}
             >
                 <h5>
@@ -184,9 +194,383 @@ const RenderControllers = ({aController}) => {
                   : null
               }
             </Modal>
+
+
+
+            {/* Modal for setting working mode */}
+            <Modal className="container" isOpen={modeModalVisible.visible} toggle={() => setModeModalVisible({visible: !modeModalVisible.visible, relay: modeModalVisible.relay})}
+                onClosed={() => setWorkingMode("simple")}
+            >
+                <div style={{margin: "10px"}}>
+                    <h4 className="text-center mt-2 text-secondary">Вибір режиму роботи мікроконтролеру</h4>
+                    
+                    <select className="form-select" aria-label="Default select example"
+                        onChange={(e) => {
+                            let mode = e.target.value;
+                            setWorkingMode(mode);
+                        }}
+                    >
+                        <option selected value="simple">Простий режим (вкл/вимк)</option>
+                        <option value="timer">Таймер</option>
+                        <option value="period">Період</option>
+                        <option value="regime">Графік</option>
+                    </select>
+
+                    <div className="mt-4">
+                        <RenderModeSection mode={workingMode} controller={controller} relay={modeModalVisible.relay} relayArr={relayArr}
+                            _countTimer={{countTimer, setCountTimer}} _disableButton={{disableButton, setDisableButton}}
+                            _hideTimer={{hideTimer, setHideTimer}} _stopButton = {{stopButton, setStopButton}} _turnOn={{turnOn, setTurnOn}}
+                        />
+                    </div>
+
+                    <Button
+                        color="warning"
+                        className="mb-2 mt-2"
+                        style={{width: "20%", marginLeft: "auto", marginRight: "auto"}}
+                        onClick={() => setModeModalVisible({visible: !modeModalVisible.visible, relay: modeModalVisible.relay})}
+                    >
+                        Закрити
+                    </Button>
+                </div>
+            </Modal>
         </>
     );
 };
+
+async function changeRelayState(controller, relay, relayArr) {
+    let {el, index, arr} = relay;
+
+    arr[index] = !el;
+    relayArr[index] = !el;
+    controller = await putController(baseUrl + 'controllers', {"serial": controller.serial, "password": controller.password, "relays": relayArr});
+    controllers.forEach((el, index, arr) => {
+        console.log(el.serial);
+        if (controller.serial === el.serial) {
+            arr[index] = controller;
+            localStorage.controllers = JSON.stringify(controllers);
+        }
+    });
+}
+
+function parseMillisecondsIntoTime(milliseconds) {
+    //Get hours from milliseconds
+    var hours = milliseconds / (1000*60*60);
+    var absoluteHours = Math.floor(hours);
+    var h = absoluteHours > 9 ? absoluteHours : '0' + absoluteHours;
+  
+    //Get remainder from hours and convert to minutes
+    var minutes = (hours - absoluteHours) * 60;
+    var absoluteMinutes = Math.floor(minutes);
+    var m = absoluteMinutes > 9 ? absoluteMinutes : '0' +  absoluteMinutes;
+  
+    //Get remainder from minutes and convert to seconds
+    var seconds = (minutes - absoluteMinutes) * 60;
+    var absoluteSeconds = Math.floor(seconds);
+    var s = absoluteSeconds > 9 ? absoluteSeconds : '0' + absoluteSeconds;
+  
+    return h + ':' + m + ':' + s;
+}
+
+let idRegInt;
+
+const StartSection = ({onClickHandler, disableButton, el, _turnOn, hideStartBtn, relayData}) => {
+    let {turnOn, setTurnOn} = _turnOn;
+    let controller, relay, relayArr;
+    if (hideStartBtn) {
+        controller = relayData.controller;
+        relay = relayData.relay;
+        relayArr = relayData.relayArr;
+    }
+
+    return (
+        <div className="row">
+            <div className="col-1"></div>
+            <div className="form-check form-switch col-6">
+                <Input className="form-check-input" type="checkbox" role="switch" id="switch" disabled={disableButton} checked={turnOn}
+                    onChange={(e) => {
+                        if (hideStartBtn) {
+                            changeRelayState(controller, relay, relayArr);
+                        }
+                        setTurnOn(e.target.checked);
+                    }}
+                />
+                <Label className="form-check-label" htmlFor="switch">Вкл/вимк пристрій</Label>
+            </div>
+            {
+                !hideStartBtn ?
+                    <Button disabled={disableButton} color="success" className="w-25" onClick={onClickHandler}>Start</Button>
+                :   null
+            }
+        </div>
+    );
+}
+
+const days = ["Неділя", "Понеділок", "Вівторок", "Середа", "Четвер", "П'ятниця", "Субота"];
+const choosedDays = localStorage.getItem('choosedDays') ? JSON.parse(localStorage.choosedDays) : [];
+
+function daysForRegimeMode(toggle) {
+    return days.map((el, index) =>
+        <DropdownItem className={choosedDays.includes(el) ? "text-primary" : "text-dark"} id={"list-" + index} onClick={(e) => {
+            toggle();
+            let element = document.getElementById("list-" + index);
+
+            if (element.classList.contains("text-dark")) {
+                element.classList.replace("text-dark", "text-primary");
+                choosedDays.push(el);
+            } else {
+                element.classList.replace("text-primary", "text-dark");
+                choosedDays.splice(choosedDays.indexOf(el), 1);
+            }
+        }}>
+            {el}
+        </DropdownItem>
+    );
+}
+
+function getCurrentDateTime(addMinutes) {
+    let now = new Date();
+    let temp = now.getFullYear() + '-' + (now.getMonth()+1 < 10 ? '0' + (now.getMonth()+1) : (now.getMonth()+1)) + '-' + now.getDate() + 'T' + now.getHours() + ':' + (now.getMinutes() + addMinutes);
+    console.log(temp);
+    console.log(now);
+    return temp;
+}
+
+const RenderModeSection = ({mode, controller, relay, relayArr, _countTimer, _disableButton, _hideTimer, _stopButton, _turnOn}) => {
+    let {el} = relay;
+    let {countTimer, setCountTimer} = _countTimer;
+    let {disableButton, setDisableButton} = _disableButton;
+    let {hideTimer, setHideTimer} = _hideTimer;
+    let {turnOn, setTurnOn} = _turnOn;
+    let {stopButton, setStopButton} = _stopButton;
+
+    React.useEffect(() => {
+        setTurnOn(el);
+        console.log("el was set: ", el);
+    }, []);
+
+    const [timer, setTimer] = React.useState(0);
+    const [listOpen, setListOpen] = React.useState(false);
+
+    console.log("start", localStorage.regimeTimeStart);
+
+    const [startTime, setStartTime] = React.useState(localStorage.regimeTimeStart ? localStorage.regimeTimeStart : "00:00");
+    const [endTime, setEndTime] = React.useState(localStorage.regimeTimeEnd ? localStorage.regimeTimeEnd : "00:00");
+
+    const toggle = () => setListOpen(prevState => !prevState);
+
+    const [period, setPeriod] = React.useState({startDateTime: localStorage.periodStart ? localStorage.periodStart : getCurrentDateTime(0),
+                                                endDateTime: localStorage.periodEnd ? localStorage.periodEnd : getCurrentDateTime(10)});
+
+    let workingState;
+
+    function intervalTrigger(setCountTimer) {
+        return setInterval(() => {
+            let temp;
+            setCountTimer(prevState => { temp = prevState - 1000; return prevState - 1000; });
+            console.log("time: ", temp)
+        }, 1000);
+    }
+
+    function regimeIntervalTrigger(startMinutes, endMinutes) {
+        workingState = turnOn;
+        
+        return setInterval(() => {
+            let currentMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+
+            // let _switch = document.getElementById("switch");
+
+            if (currentMinutes >= startMinutes && currentMinutes < endMinutes && choosedDays.includes(days[new Date().getDay()])) {
+                console.log("In regime mode");
+                if (el !== workingState) {
+                    changeRelayState(controller, relay, relayArr);
+                    el = workingState;
+                }
+            } else {
+                console.log("Not in regime mode");
+                if (el === workingState) {
+                    changeRelayState(controller, relay, relayArr);
+                    el = !workingState;
+                }
+            }
+
+            console.log(el === workingState);
+            // _switch.setAttribute("value", el);
+        }, 10000);
+    }
+
+    function parseStringTime(type, string) {
+        if (type === "hours") return parseInt(string[0] + string[1]);
+        if (type === "minutes") return parseInt(string[3] + string[4]);
+    }
+
+    function simpleModeHandler() {
+        console.log("trunOn: ", turnOn);
+        console.log("el: ", el);
+        // console.log(el === turnOn);
+        if (el !== turnOn) {
+            changeRelayState(controller, relay, relayArr);
+            // el = relay.el;
+            console.log("el after: ", el);
+        }
+        console.log("relay.el: ", relay.el);
+
+    }
+
+    function timerModeHandler() {
+        if (timer > 0) {
+            if (el !== turnOn) {
+                changeRelayState(controller, relay, relayArr);
+            }
+            setDisableButton(true);
+            setCountTimer(timer);
+            setHideTimer(true);
+
+            let id = intervalTrigger(setCountTimer);
+
+            setTimeout(() => {
+                changeRelayState(controller, relay, relayArr);
+                clearInterval(id);
+                setDisableButton(false);
+                setHideTimer(false);
+                setTurnOn(!turnOn);
+            }, timer);
+        } else {
+            alert("Введіть корректний час");
+        }
+    }
+
+    function periodModeHandler() {
+        setStopButton(!stopButton);
+        setDisableButton(!disableButton);
+
+        let _switch = document.getElementById("switch");
+
+        let now = new Date().valueOf(),
+            start = new Date(period.startDateTime).valueOf(),
+            end = new Date(period.endDateTime).valueOf();
+
+        console.log(turnOn);
+        if (stopButton) {
+            localStorage.periodStart = period.startDateTime;
+            localStorage.periodEnd = period.endDateTime;
+
+            setTimeout(() => {
+                if (el !== turnOn) {
+                    changeRelayState(controller, relay, relayArr);
+                }
+            }, start - now < 0 ? 100 : start - now);
+
+            setTimeout(() => {
+                changeRelayState(controller, relay, relayArr);
+                _switch.setAttribute("checked", false);
+            }, end - now);
+        } else {
+            localStorage.removeItem("periodStart");
+            localStorage.removeItem("periodEnd");
+        }
+    }
+
+    function regimeModeHandler() {
+        localStorage.choosedDays = choosedDays.length > 0 ? JSON.stringify(choosedDays) : undefined;
+        let startMinutes = parseStringTime("hours", startTime) * 60 + parseStringTime("minutes", startTime);
+        let endMinutes = parseStringTime("hours", endTime) * 60 + parseStringTime("minutes", endTime);
+
+        if (!stopButton) {
+            clearInterval(idRegInt);
+            console.log("Interval ", idRegInt, " cleared");
+            localStorage.removeItem("regimeTimeStart");
+            localStorage.removeItem("regimeTimeEnd");
+        } else {
+            idRegInt = regimeIntervalTrigger(startMinutes, endMinutes);
+            console.log("we're working, interv: ", idRegInt);
+
+            localStorage.regimeTimeStart = startTime;
+            localStorage.regimeTimeEnd = endTime;
+        }
+
+        setStopButton(!stopButton);
+        setDisableButton(!disableButton);
+    }
+
+    switch (mode) {
+        case "simple": return (
+            <StartSection
+                onClickHandler={simpleModeHandler}
+                disableButton={disableButton} el={el}
+                _turnOn={{turnOn, setTurnOn}} hideStartBtn={true} relayData={{controller, relay, relayArr}}
+            />
+        );
+
+        case "timer": return (
+            <>
+                <Input type="time" defaultValue="00:00:00" step="1" hidden={hideTimer} onInput={(e) => {
+                    let time = e.target.value;
+                    let result = (time[0] + time[1]) * 60 * 60 * 1000 + (time[3] + time[4]) * 60 * 1000 + (time[6] + time[7]) * 1000;
+                    setTimer(result);
+                }}/>
+                <Input type="time" defaultValue="00:00:00" step="1" hidden={!hideTimer} value={parseMillisecondsIntoTime(countTimer)}/>
+
+                <StartSection
+                    onClickHandler={timerModeHandler}
+                    disableButton={disableButton} el={el}
+                    _turnOn={{turnOn, setTurnOn}}
+                />
+            </>
+        );
+
+        case "period": return (
+            <>                                                
+                <div className="row" style={{padding: "2%"}}>
+                    <Input className="w-50" type="datetime-local" min={period.startDateTime} value={period.startDateTime}
+                        onChange={e => setPeriod({startDateTime: e.target.value, endDateTime: period.endDateTime})}
+                    />
+                    <Input className="w-50" type="datetime-local" min={period.endDateTime} value={period.endDateTime}
+                        onChange={e => setPeriod({startDateTime: period.startDateTime, endDateTime: e.target.value})}
+                    />
+                    <StartSection
+                        onClickHandler={periodModeHandler}
+                        disableButton={disableButton} el={el}
+                        _turnOn={{turnOn, setTurnOn}}
+                    />
+                    <Button className="w-25" color="danger" disabled={stopButton} onClick={periodModeHandler} >
+                        Stop
+                    </Button>
+                    {new Date().valueOf() > new Date(period.startDateTime).valueOf() && new Date().valueOf() < new Date(period.endDateTime).valueOf() ? "true" : "false"}
+                </div>
+            </>
+        );
+
+        case "regime": return (
+            <>
+                <div className="row">
+                    <Dropdown className="w-50" isOpen={listOpen} toggle={toggle} key={el}>
+                        <DropdownToggle caret color="warning" style={{width: "100%"}}>        
+                            Оберіть дні
+                        </DropdownToggle>
+                        <DropdownMenu>
+                            {daysForRegimeMode(toggle)}
+                        </DropdownMenu>
+                    </Dropdown>
+                    <Input className="w-25" type="time" value={startTime}
+                            onChange={(e) => setStartTime(e.target.value)} />
+                    <Input className="w-25" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                </div>
+                {choosedDays.length > 0 ? choosedDays.join(", ") : ""}
+                <StartSection
+                    onClickHandler={regimeModeHandler}
+                    disableButton={disableButton} el={el} _stopButton={_stopButton}
+                    _turnOn={{turnOn, setTurnOn}}
+                />
+                <Button className="w-25" color="danger" disabled={stopButton} onClick={regimeModeHandler} >
+                    Stop
+                </Button>
+                <h5>{typeof workingState !== "undefined" ? workingState ? "Зараз пристрій увімкнений" : "Зараз пристрій вимкнений" : null}</h5>
+            </>
+        );
+
+        default: return <>Empty...</>
+    }
+}
 
 export default function App() {
   const [modalVisible, setModalVisible] = React.useState(false);
